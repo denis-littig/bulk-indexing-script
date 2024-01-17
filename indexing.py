@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 
 Base = declarative_base()
 
+
 class URL(Base):
     __tablename__ = 'urls'
 
@@ -20,13 +21,15 @@ class URL(Base):
     last_submitted = Column(DateTime, nullable=True)
     index_checked_date = Column(DateTime, nullable=True)
     is_indexed = Column(Boolean, default=False)
-    
+
+
 class Quota(Base):
     __tablename__ = 'quota'
 
     id = Column(Integer, primary_key=True)
     date = Column(String, nullable=False)
     count = Column(Integer, nullable=False)
+
 
 class Log(Base):
     __tablename__ = 'logs'
@@ -36,6 +39,7 @@ class Log(Base):
     log_type = Column(String, nullable=False)
     message = Column(String, nullable=False)
 
+
 class BulkIndexer:
     def __init__(self):
         """
@@ -44,9 +48,10 @@ class BulkIndexer:
         self.engine = create_engine('sqlite:///database.db')
         Base.metadata.create_all(self.engine)
         self.Session = sessionmaker(bind=self.engine)
-        
+
         scopes = ['https://www.googleapis.com/auth/indexing']
-        credentials = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scopes=scopes)
+        credentials = ServiceAccountCredentials.from_json_keyfile_name(
+            'credentials.json', scopes=scopes)
         http = credentials.authorize(httplib2.Http())
         self.service = build('indexing', 'v3', http=http)
         self.urls = self.load_urls()
@@ -61,7 +66,8 @@ class BulkIndexer:
             if self.quota >= 200:
                 print('Quota exceeded. Please try again tomorrow.')
                 return
-            batch.add(self.service.urlNotifications().publish(body={"url": url.url, "type": "URL_UPDATED"}))
+            batch.add(self.service.urlNotifications().publish(
+                body={"url": url.url, "type": "URL_UPDATED"}))
         batch.execute()
 
     def load_urls(self, limit=200):
@@ -69,16 +75,19 @@ class BulkIndexer:
         Load URLs from the database.
         """
         session = self.Session()
-        urls = session.query(URL).limit(limit).all()
+        urls = session.query(URL).filter(
+            URL.last_submitted == None).limit(limit).all()
         session.close()
         return urls
-    
+
     def load_unindexed_urls(self):
         """
         Load URLs from the database that have not been indexed.
         """
         session = self.Session()
-        urls = session.query(URL).filter(URL.is_indexed == False).filter(URL.index_checked_date == None or URL.index_checked_date < datetime.now() - timedelta(days=7)).all()
+        urls = session.query(URL).filter(URL.last_submitted == None).all()
+        # urls = session.query(URL).filter(URL.is_indexed == False).filter(URL.last_submitted == None).filter(
+        #     URL.index_checked_date == None or URL.index_checked_date < datetime.now() - timedelta(days=7)).all()
         session.close()
         return urls
 
@@ -112,7 +121,8 @@ class BulkIndexer:
         """
         session = self.Session()
         try:
-            session.query(URL).filter_by(url=url).update({'last_submitted': last_submitted})
+            session.query(URL).filter_by(url=url).update(
+                {'last_submitted': last_submitted})
             session.commit()
         finally:
             session.close()
@@ -193,16 +203,17 @@ class BulkIndexer:
         Check URLs to see if they are indexed.
 
         @todo: implement a method to check the indexed status of the URLs.
-        
+
         Options:
         1. use the DataForSEO API and perform site: and inurl: searches
         2. Build a custom scraper to check the indexed status of the URLs using scraperapi.com
         """
         pass
 
+
 if __name__ == '__main__':
     indexer = BulkIndexer()
-    
+
     if len(sys.argv) < 2:
         print("Usage: indexing.py <command> [<args>]")
         print("Commands:")
